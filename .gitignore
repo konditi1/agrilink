@@ -1,0 +1,14 @@
+.env
+
+# General Python ignores
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.cover
+*.log
+*.pot
+*.class
+
+# Virtual environment
+env/
