@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.contrib.postgres.indexes import GinIndex
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -49,6 +50,11 @@ class FarmerProfile(models.Model):
     farm_location = models.CharField(max_length=100, blank=True, null=True)
     farm_size = models.CharField(max_length=100, blank=True, null=True)
     products = models.TextField(blank=True, null=True)
+
+    class Meta:
+        indexes = [
+            GinIndex(name="idx_farm_name", fields=["farm_name"], opclasses=["gin_trgm_ops"]),
+        ]
 
     def __str__(self):
         return self.farm_name if self.farm_name else f"Farmer Profile ({self.user.email})"
