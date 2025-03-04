@@ -82,6 +82,14 @@ class Product(models.Model):
     is_available = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["price"], name="idx_product_price"),
+            models.Index(fields=["seller"], name="idx_product_seller"),
+            models.Index(fields=["stock_quantity"], name="idx_product_stock"),
+            models.Index(fields=["is_available"], name="idx_product_available"),
+        ]
     
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -98,7 +106,7 @@ class Product(models.Model):
     
 
 class ProductImage(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images', db_index=True)
     image = models.ImageField(upload_to='product_images/')
     is_primary = models.BooleanField(default=False)  # Ensures one main image
     alt_text = models.CharField(max_length=100, blank=True)
