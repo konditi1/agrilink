@@ -52,10 +52,12 @@ INSTALLED_APPS = [
     # 3rd party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
 
     # Installed apps 
     'shop.apps.ShopConfig',
     'accounts.apps.AccountsConfig',
+    'products.apps.ProductsConfig',
 ]
 
 INSTALLED_APPS += ['corsheaders']
@@ -83,6 +85,11 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(env("ACCESS_TOKEN_LIFETIME"))),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=int(env("REFRESH_TOKEN_LIFETIME"))),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': env('JWT_SECRET_KEY'),
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 MIDDLEWARE = [
