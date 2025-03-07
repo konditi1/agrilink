@@ -50,17 +50,30 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # 3rd party apps
+    'django_filters',
+    'drf_yasg',
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
 
     # Installed apps 
-    'shop.apps.ShopConfig',
+    'cart.apps.CartConfig',
     'accounts.apps.AccountsConfig',
     'products.apps.ProductsConfig',
 ]
 
-INSTALLED_APPS += ['corsheaders']
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False,
+}
+
 
 # Allow requests from your frontend
 CORS_ALLOWED_ORIGINS = [
@@ -72,13 +85,18 @@ CORS_ALLOWED_ORIGINS = [
 # For development
 CORS_ALLOW_CREDENTIALS = True
 
+CART_SESSION_ID = 'cart'
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-    ]
+        ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
+        ],
 }
 
 
@@ -189,9 +207,3 @@ EMAIL_PORT = env.int("EMAIL_PORT")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
-
-
-# Image upload settings
-PRODUCT_IMAGE_MAX_DIMENSIONS = (800, 800)  # Resize max width & height
-PRODUCT_IMAGE_ALLOWED_FORMATS = ["JPEG", "PNG"]
-

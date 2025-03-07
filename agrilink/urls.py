@@ -16,8 +16,41 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework import permissions
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+
+# Create the Swagger schema view
+schema_view = get_schema_view(
+    openapi.Info(
+        title="AgriLink API",
+        default_version='v1',
+        description="API for AgriLink Farmers Marketplace",
+        terms_of_service="https://www.agrilink.com/terms/",
+        contact=openapi.Contact(email="contact@agrilink.com"),
+        license=openapi.License(name="BSD License"),
+    ),
+    public=True,
+    permission_classes=(permissions.AllowAny,),
+)
+schema_view.security_definitions={
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'JWT token format: "Bearer {token}"'
+        }
+    }
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
+    path('cart/', include('cart.urls', namespace='cart')),
+    path('', include('products.urls')),
+
+    path('swagger<format>/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    
 ]

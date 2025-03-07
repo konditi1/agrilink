@@ -5,6 +5,20 @@ from django.contrib.postgres.indexes import GinIndex
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
+        """
+        Creates and saves a User with the given email and password.
+
+        Args:
+            email (str): The email address of the user.
+            password (str): The password of the user (default=None).
+            **extra_fields: Additional keyword arguments to use when creating a user.
+
+        Raises:
+            ValueError: If the email address is not given.
+
+        Returns:
+            User: The created user.
+        """
         if not email:
             raise ValueError("The Email field must be set")
         email = self.normalize_email(email)
@@ -14,6 +28,17 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
+        """
+        Creates and saves a superuser with the given email and password.
+
+        Args:
+            email (str): The email address of the user.
+            password (str): The password of the user (default=None).
+            **extra_fields: Additional keyword arguments to use when creating a user.
+
+        Returns:
+            User: The created user.
+        """
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
 
@@ -42,6 +67,11 @@ class CustomUser(AbstractUser):
     REQUIRED_FIELDS = []  # Only email and password are required
 
     def __str__(self):
+        """
+        Return a string representation of the user.
+
+        Includes the email and role in the format "email (role)".
+        """
         return f"{self.email} ({self.role})"
 
 class FarmerProfile(models.Model):
@@ -57,6 +87,12 @@ class FarmerProfile(models.Model):
         ]
 
     def __str__(self):
+        """
+        Return a string representation of the FarmerProfile.
+
+        If the farm_name is set, return that. Otherwise, return a string in the format
+        "Farmer Profile (user email)".
+        """
         return self.farm_name if self.farm_name else f"Farmer Profile ({self.user.email})"
 
 class ConsumerProfile(models.Model):
@@ -65,4 +101,9 @@ class ConsumerProfile(models.Model):
     delivery_address = models.TextField(blank=True, null=True)
 
     def __str__(self):
+        """
+        Return a string representation of the ConsumerProfile.
+
+        Includes the email of the associated user in the format "Consumer Profile (user email)".
+        """
         return f"Consumer Profile ({self.user.email})"

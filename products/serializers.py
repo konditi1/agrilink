@@ -9,22 +9,35 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'description', 'parent', 'children']
-        read_only_fields = ['id', 'slug']
+        fields = ['id', 'name', 'slug', 'description', 'parent', 'children', 'created_at',
+                  'updated_at', 'is_approved', 'created_by']
+        read_only_fields = ['id', 'slug', 'created_at', 'updated_at', 'created_by']
 
     def get_children(self, obj):
-        """Return child categories only if 'include_children' is in the request."""
+        """
+        Retrieves and serializes the children of a given category object if the request
+        includes a query parameter 'include_children' set to 'true'. If the parameter is 
+        not present or set to any other value, it returns an empty list by default.
+        
+        Args:
+            obj: The category object for which children need to be retrieved.
+
+        Returns:
+            A list of serialized child category objects if 'include_children' is 'true',
+            or an empty list otherwise.
+        """
+
         request = self.context.get('request')
         if request and request.query_params.get('include_children') == 'true':
             children = obj.children.all()
             return CategorySerializer(children, many=True).data  # Recursively serialize children
-        return None  # Default: Don't load children
+        return []  # Default: Don't load children
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id', 'product', 'image', 'is_primary', 'alt_text']
+        fields = ['id',  'image', 'is_primary', 'alt_text']
         read_only_fields = ['id']  # ID should be read-only
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -48,21 +61,35 @@ class ProductSerializer(serializers.ModelSerializer):
         ]
 
     def get_images(self, obj):
-        """Returns images in a hybrid manner (IDs by default, full data if requested)."""
+        """
+        Return a list of IDs of all images if 'include_images' is not provided,
+        otherwise return a list of serialized ProductImage objects.
+        """
         request = self.context.get("request")
         images = obj.images.all()
 
         if request and request.query_params.get("include_images") == "full":
             return ProductImageSerializer(images, many=True).data
-        return [image.id for image in images]
+        return list(images.values_list("id", flat=True))
 
     def get_farm_name(self, obj):
-        """If seller is a farmer, return farm name from FarmerProfile, otherwise return None."""
+        """
+        Retrieve the farm name associated with the seller's farmer profile.
+
+        If the seller's farmer profile has a farm name, return it. Otherwise,
+        return None.
+        """
+
         return getattr(obj.seller.farmer_profile, "farm_name", None)
 
     def get_primary_image(self, obj):
-        """Returns the URL of the primary image, or None if no image exists."""
-        primary_image = obj.images.filter(is_primary=True).only("image").first()
+        """
+        Return the URL of the primary image if it exists, otherwise return None.
+        
+        Retrieves the primary image of the product and returns its URL if it exists,
+        otherwise returns None.
+        """
+        primary_image = obj.images.filter(is_primary=True).first()
         return primary_image.image.url if primary_image else None
 
 
@@ -83,6 +110,17 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ["primary_image"]
 
     def create(self, validated_data):
+        """
+        Create a new product with the given validated data.
+
+        Pops the `uploaded_images` key from the validated data and uses it to
+        create ProductImage objects after the product has been created. The
+        first image in the list is made the primary image.
+
+        The seller is assigned from the authenticated user in the request context.
+
+        Returns the newly created Product object.
+        """
         uploaded_images = validated_data.pop("uploaded_images", [])
 
         # Assign seller from authenticated user
@@ -101,6 +139,11 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         return product
 
     def get_primary_image(self, obj):
-        """Returns the URL of the primary image, or None if no image exists."""
+        """
+        Return the URL of the primary image if it exists, otherwise return None.
+        
+        Retrieves the primary image of the product and returns its URL if it exists,
+        otherwise returns None.
+        """
         primary_image = obj.images.filter(is_primary=True).only("image").first()
         return primary_image.image.url if primary_image else None
