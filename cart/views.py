@@ -12,27 +12,52 @@ from rest_framework.exceptions import ValidationError
 class CartAddProductView(APIView):
     """
     Add a product to the cart or update its quantity.
-    - Checks product stock before adding.
-    - Ensures you cannot add more than available stock.
+
+    ### Endpoint:
+    - **POST** `/cart/add/<product_id>/`
+
+    ### Request Body:
+    - **quantity** (*integer*, required): Number of items to add.
+    - **override** (*boolean*, required): If `true`, replaces the quantity in the cart. If `false`, adds to the existing quantity.
+
+    ### Responses:
+    - ✅ **200 OK**: Product successfully added.
+    - ❌ **400 Bad Request**: Validation error (e.g., exceeding stock).
+    - ❌ **404 Not Found**: Product does not exist.
+
+    ### Example Request:
+    ```json
+    {
+        "quantity": 2,
+        "override": true
+    }
+    ```
+
+    ### Example Response:
+    ```json
+    {
+        "detail": "Product added to cart successfully.",
+        "product_id": 1,
+        "product_name": "Organic Tomatoes",
+        "quantity": 2,
+        "available_stock": 50
+    }
+    ```
     """
-    def get_serializer_context(self):
-        """
-        Returns a dictionary containing the product instance to be passed to the serializer context.
-        """
-        return {'product': self.product}
-    
+
     @swagger_auto_schema(
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
                 'quantity': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of items to add"),
-                'override': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Whether to override the current quantity"),
+                'override': openapi.Schema(type=openapi.TYPE_BOOLEAN, description="Replace quantity (true) or add more (false)"),
             },
             required=['quantity', 'override']
         ),
         responses={
             200: openapi.Response('Product added to cart successfully'),
-            400: openapi.Response('Bad request')
+            400: openapi.Response('Bad request'),
+            404: openapi.Response('Product not found')
         }
     )
     
@@ -42,7 +67,7 @@ class CartAddProductView(APIView):
         
         serializer = CartAddProductSerializer(
             data=request.data,
-            context=self.get_serializer_context()
+            context={'product': self.product}
         )
 
         if serializer.is_valid():
@@ -76,19 +101,40 @@ class CartAddProductView(APIView):
 
 class CartRemoveProductView(APIView):
     """
-    Remove a product from the cart and return the updated cart details.
+    Remove a product from the cart.
+
+    ### Endpoint:
+    - **POST** `/cart/remove/<product_id>/`
+
+    ### Responses:
+    - ✅ **200 OK**: Product successfully removed.
+    - ❌ **404 Not Found**: Product not in cart.
+
+    ### Example Response:
+    ```json
+    {
+        "detail": "Product removed from cart successfully.",
+        "cart": [
+            {
+                "product_id": 2,
+                "product_name": "Fresh Lettuce",
+                "quantity": 1,
+                "price": "150.00",
+                "total_price": "150.00"
+            }
+        ],
+        "total_price": "150.00"
+    }
+    ```
     """
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response('Product removed from cart successfully'),
+            404: openapi.Response('Product not found in cart')
+        }
+    )
     def post(self, request, product_id):
-        """
-        Remove a product from the cart and return the updated cart details.        
-        Args
-            request (HttpRequest): The HTTP request object containing user data.
-            product_id (int): The ID of the product to be removed from the cart.        
-        Returns
-            Response: A Response object containing a success message and the updated cart details.
-            - If the product is not found in the cart, returns a 404 status with an error message.
-            - If the product is successfully removed, returns a 200 status with the updated cart and total price.
-        """
 
         cart = Cart(request)
         product = get_object_or_404(Product, id=product_id)
@@ -128,8 +174,35 @@ class CartRemoveProductView(APIView):
 class CartDetailView(APIView):
     """
     Retrieve the current cart details.
-    Returns the list of products in the cart and the total price.
+
+    ### Endpoint:
+    - **GET** `/cart/`
+
+    ### Responses:
+    - ✅ **200 OK**: Returns the list of items in the cart.
+
+    ### Example Response:
+    ```json
+    {
+        "cart": [
+            {
+                "product_id": 1,
+                "product_name": "Organic Tomatoes",
+                "quantity": 2,
+                "price": "500.00",
+                "total_price": "1000.00"
+            }
+        ],
+        "total_price": "1000.00"
+    }
+    ```
     """
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response('Returns cart details with total price')
+        }
+    )
     def get(self, request):
         cart = Cart(request)
         cart_data = [

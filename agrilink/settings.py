@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
 
     # Installed apps 
+    'orders.apps.OrdersConfig',
     'cart.apps.CartConfig',
     'accounts.apps.AccountsConfig',
     'products.apps.ProductsConfig',
@@ -108,6 +109,7 @@ SIMPLE_JWT = {
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': env('JWT_SECRET_KEY'),
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'TOKEN_BLACKLIST': True
 }
 
 MIDDLEWARE = [
@@ -119,8 +121,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    'corsheaders.middleware.CorsMiddleware',
-    
+    'corsheaders.middleware.CorsMiddleware',    
 ]
 
 ROOT_URLCONF = 'agrilink.urls'
