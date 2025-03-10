@@ -28,6 +28,7 @@ packaging==24.2
 pillow==11.1.0
 prompt_toolkit==3.0.50
 psycopg==3.2.5
+psycopg2-binary==2.9.10
 PyJWT==2.9.0
 python-dateutil==2.9.0.post0
 pytz==2025.1
@@ -45,3 +46,4 @@ uritemplate==4.1.1
 urllib3==2.3.0
 vine==5.1.0
 wcwidth==0.2.13
+whitenoise==6.9.0
