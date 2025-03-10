@@ -29,7 +29,7 @@ class FarmerProfileAdmin(admin.ModelAdmin):
 
 # Admin for ConsumerProfile
 class ConsumerProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'preferred_products', 'delivery_address')
+    list_display = ('user',  'delivery_address')
     search_fields = ('user__email', 'preferred_products')
 
 # Register all models

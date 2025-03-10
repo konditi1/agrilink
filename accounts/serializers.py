@@ -1,21 +1,13 @@
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, FarmerProfile, ConsumerProfile
+from products.serializers import ProductSerializer
 from rest_framework import serializers
 import re
 
 class FarmerProfileSerializer(serializers.ModelSerializer):
-    
-    preferred_products = serializers.SerializerMethodField()
-
-    def get_preferred_products(self, obj):
-        """
-        Return a list of names of the preferred products of the farmer.
-        """
-        return [product.name for product in obj.preferred_products.all()]
-
     class Meta:
         model = FarmerProfile
-        fields = ['farm_name', 'farm_location', 'farm_size', 'products', 'preferred_products']
+        fields = ['farm_name', 'farm_location', 'farm_size', 'products']
         read_only_fields = ['user']
 
 
@@ -29,10 +21,22 @@ def validate_phone(value):
 
 
 class ConsumerProfileSerializer(serializers.ModelSerializer):
+    preferred_products = serializers.SerializerMethodField()  # Use method to safely retrieve products
+
     class Meta:
         model = ConsumerProfile
         fields = ['preferred_products', 'delivery_address']
         read_only_fields = ['user']
+
+    def get_preferred_products(self, obj):
+        """
+        Safely get the list of preferred products.
+        Returns an empty list if no products are linked.
+        """
+        if hasattr(obj, 'preferred_products'):
+            products = obj.preferred_products.all()
+            return ProductSerializer(products, many=True).data
+        return []
 
 class CustomUserSerializer(serializers.ModelSerializer):
     farmer_profile = serializers.SerializerMethodField()

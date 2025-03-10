@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.contrib.postgres.indexes import GinIndex
+from products.models import Product
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -97,7 +98,7 @@ class FarmerProfile(models.Model):
 
 class ConsumerProfile(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, primary_key=True, related_name='consumer_profile')
-    preferred_products = models.TextField(blank=True, null=True)
+    preferred_products = models.ManyToManyField(Product, blank=True, related_name='consumers')
     delivery_address = models.TextField(blank=True, null=True)
 
     def __str__(self):
