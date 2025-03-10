@@ -23,8 +23,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
-DATABASE_URL = env('DATABASE_URL')
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
@@ -152,19 +150,14 @@ WSGI_APPLICATION = 'agrilink.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    # 'default': dj_database_url.parse(DATABASE_URL)
-    'default': dj_database_url.config('postgresql://fena:QHx2YQdzLunOcV0M4H4zvGUg8lj7QEev@dpg-cv7hp1tds78s7395vp30-a/agrilink', conn_max_age=600)
-    
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.postgresql',
-    #     "NAME": env("DB_NAME"),
-    #     "USER": env("DB_USER"),
-    #     "PASSWORD": env("DB_PASSWORD"),
-    #     "HOST": env("DB_HOST"),
-    #     "PORT": env("DB_PORT"),
-    # }
-}
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
+    }
+else:
+    raise ValueError("DATABASE_URL is not set. Check your environment variables.")
 
 
 # Password validation
