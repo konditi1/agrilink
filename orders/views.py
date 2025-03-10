@@ -5,25 +5,52 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from cart.cart import Cart
 from .models import OrderItem, Order
+from orders.tasks import send_order_confirmation_email
 from .serializers import OrderSerializer
 from rest_framework.permissions import IsAuthenticated
+
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 class OrderCreateAPIView(APIView):
     """
     API endpoint to create an order from the cart.
     """
     permission_classes = [IsAuthenticated]
+     # ✅ Add Swagger documentation for request body
+    @swagger_auto_schema(
+        request_body=OrderSerializer,  # ✅ Automatically picks up schema from the serializer
+        responses={
+            201: openapi.Response("Order created successfully", openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "message": openapi.Schema(type=openapi.TYPE_STRING, example="Order created successfully"),
+                    "order_id": openapi.Schema(type=openapi.TYPE_STRING, example="e4b98a8e-88bb-4c8d-bd3d-9c5e918e9cb7"),
+                },
+            )),
+            400: openapi.Response("Bad Request", openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "error": openapi.Schema(type=openapi.TYPE_STRING, example="Cart is empty. Cannot place an order."),
+                },
+            )),
+        }
+    )
 
     def post(self, request, *args, **kwargs):
         """
         Handles order creation from the cart for the authenticated user.
 
         ### Workflow:
-        1. **Check if the cart is not empty** – prevents ordering without items.
-        2. **Validate request data** – uses `OrderCreateSerializer` for validation.
-        3. **Create order & order items** – generates `Order` and `OrderItem` instances.
-        4. **Clear the cart** – ensures cart is empty after order creation.
-        5. **Return response** – returns order ID on success.
+        1. **✅Check if the cart is not empty** – prevents ordering without items.
+        2. **✅Validate request data** – uses `OrderCreateSerializer` for validation.
+        3. **✅Create order & order items** – generates `Order` and `OrderItem` instances.
+        4. **✅Clear the cart** – ensures cart is empty after order creation.
+        5. **✅Return response** – returns order ID on success.
+        
+        ### Authentication:
+        **🔒 Requires authentication (only logged-in users can place an order).
+    
 
         ### Responses:
         - ✅ **201 Created** – Order successfully created, returns `{ "order_id": <UUID> }`
@@ -35,7 +62,7 @@ class OrderCreateAPIView(APIView):
 
         if not cart:
             return Response({"error": "Cart is empty. Cannot place an order."}, status=status.HTTP_400_BAD_REQUEST)
-
+       
         serializer = OrderSerializer(data=request.data, context={'request': request})
 
         if serializer.is_valid():
@@ -46,10 +73,18 @@ class OrderCreateAPIView(APIView):
                 OrderItem(order=order, product=item['product'], price=item['price'], quantity=item['quantity'])
                 for item in cart
             ]
+          
             OrderItem.objects.bulk_create(order_items)
 
             # Clear the cart after order creation
             cart.clear()
+
+            try:
+                # Send a confirmation email asynchronously using Celery
+                send_order_confirmation_email.delay(order.id, request.user.email)
+            except Exception as e:
+                print(f"Error sending order confirmation email: {e}")
+
 
             return Response(
                 {"message": "Order created successfully", "order_id": order.id},

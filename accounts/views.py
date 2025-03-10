@@ -1,12 +1,14 @@
 from django.contrib.auth.password_validation import validate_password
-from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
+from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import CustomUser
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from .serializers import UserRegisterSerializer, CustomUserSerializer, FarmerProfileSerializer, ConsumerProfileSerializer
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -14,6 +16,36 @@ from django.utils.encoding import force_bytes, force_str
 from django.core.mail import send_mail
 from django.core.exceptions import ValidationError
 from django.conf import settings
+from rest_framework.permissions import BasePermission
+
+
+class IsConsumer(BasePermission):
+    """
+    Custom permission to allow only users with a consumer profile to access ConsumerProfileAPIView.
+    """
+
+    def has_permission(self, request, view):
+        # Allow if user is authenticated and has a consumer profile
+        return bool(request.user and request.user.is_authenticated and hasattr(request.user, 'consumer_profile'))
+
+    def has_object_permission(self, request, view, obj):
+        # Ensure the user can only access their own consumer profile
+        return obj.user == request.user
+
+
+class IsFarmer(BasePermission):
+    """
+    Custom permission to allow only farmers to access FarmerProfileAPIView.
+    """
+
+    def has_permission(self, request, view):
+        # Ensure the user is authenticated and has a farmer profile
+        return bool(request.user and request.user.is_authenticated and hasattr(request.user, 'farmer_profile'))
+
+    def has_object_permission(self, request, view, obj):
+        # Ensure the user is the owner of the farmer profile they are accessing
+        return obj.user == request.user
+
 
 @api_view(['GET'])
 def api_documentation(request):
@@ -34,38 +66,55 @@ def api_documentation(request):
 class UserRegistrationAPIView(CreateAPIView):
     """
     Register a new user.
-
-    **Request Data:**
-    - `email` (string): User's email address (required)
-    - `password` (string): User's password (required)
-    - `first_name` (string): User's first name (required)
-    - `last_name` (string): User's last name (required)
-    - `phone` (string): User's phone number (optional)
-    - `profile_picture` (file): User's profile picture (optional)
-
-    **Response:**
-    - 201 Created: User registered successfully
-    - 400 Bad Request: Validation errors
     """
     queryset = CustomUser.objects.all()
     serializer_class = UserRegisterSerializer
     permission_classes = [AllowAny]
 
+    @swagger_auto_schema(
+        operation_summary="Register a new user",
+        operation_description="""
+        Creates a new user account and returns the user data along with a success message.
+
+        **Request Body:**
+        - **email** (string, required): User's email address
+        - **role** (string, required): `"farmer"` or `"consumer"`
+        - **password** (string, required): User's password (must meet validation criteria)
+        - **confirm_password** (string, required): Must match `password`
+        - **first_name** (string, required): User's first name
+        - **last_name** (string, required): User's last name
+        - **phone** (string, optional): Must be in international format (e.g., `+254712345678`)
+        - **profile_picture** (file, optional): Profile picture upload
+
+        **Responses:**
+        - ✅ **201 Created**: User registered successfully
+        - ❌ **400 Bad Request**: Validation errors
+        """,
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["email", "role", "password", "confirm_password", "first_name", "last_name"],
+            properties={
+                "email": openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL, example="user@example.com"),
+                "role": openapi.Schema(type=openapi.TYPE_STRING, enum=["farmer", "consumer"], example="farmer"),
+                "password": openapi.Schema(type=openapi.TYPE_STRING, format="password", example="SecurePassword123!"),
+                "confirm_password": openapi.Schema(type=openapi.TYPE_STRING, format="password", example="SecurePassword123!"),
+                "first_name": openapi.Schema(type=openapi.TYPE_STRING, example="John"),
+                "last_name": openapi.Schema(type=openapi.TYPE_STRING, example="Doe"),
+                "phone": openapi.Schema(type=openapi.TYPE_STRING, example="+254712345678"),
+                "profile_picture": openapi.Schema(type=openapi.TYPE_FILE, description="Optional profile picture"),
+            },
+        ),
+        responses={
+            201: openapi.Response(
+                description="User registered successfully",
+                schema=CustomUserSerializer
+            ),
+            400: openapi.Response(
+                description="Bad Request - Validation errors"
+            ),
+        },
+    )
     def post(self, request, *args, **kwargs):
-        """
-        Registers a new user.
-        
-        Request data should contain the following information:
-        - email: the user's email
-        - password: the user's password
-        - first_name: the user's first name
-        - last_name: the user's last name
-        - phone: the user's phone number
-        - profile_picture: an optional profile picture for the user
-        
-        Returns a JSON object with the user's data and a success message on success.
-        Returns a JSON object with the error message on failure.
-        """
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()  # User is created, signals handle profile creation
@@ -78,28 +127,134 @@ class UserRegistrationAPIView(CreateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
-class UserProfileAPIView(RetrieveUpdateAPIView):
+class UserProfileAPIView(RetrieveUpdateDestroyAPIView):
     """
-    Retrieve or update the authenticated user's profile.
-
-    **Permissions:**
-    - Authenticated users only
-
-    **Response:**
-    - 200 OK: Returns the user's profile data
-    - 403 Forbidden: If user is not authenticated
-    """
+    Retrieve, update, or delete the authenticated user's profile.
+    """   
     serializer_class = CustomUserSerializer
     permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_summary="Retrieve the authenticated user's profile",
+        operation_description="""
+            This endpoint allows an authenticated user to retrieve their profile information.
+
+            **Permissions:**  
+            - Only authenticated users can access this endpoint.  
+
+            **Responses:**  
+            - `200 OK` - Returns the user's profile data.  
+            - `403 Forbidden` - If the user is not authenticated.  
+        """,
+        responses={
+            200: openapi.Response(
+                description="User profile retrieved successfully",
+                schema=CustomUserSerializer()
+            ),
+            403: openapi.Response(
+                description="Forbidden - User is not authenticated"
+            ),
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="Update the authenticated user's profile",
+        operation_description="""
+            Allows an authenticated user to update their profile information.
+
+            **Permissions:**  
+            - Only authenticated users can access this endpoint.  
+
+            **Request Body:**  
+            - `first_name` (string, optional): User's first name  
+            - `last_name` (string, optional): User's last name  
+            - `phone` (string, optional): User's phone number  
+            - `profile_picture` (file, optional): Profile picture  
+
+            **Responses:**  
+            - `200 OK` - User profile updated successfully  
+            - `400 Bad Request` - Invalid input data  
+            - `403 Forbidden` - If the user is not authenticated  
+        """,
+        request_body=CustomUserSerializer,
+        responses={
+            200: openapi.Response(
+                description="User profile updated successfully",
+                schema=CustomUserSerializer()
+            ),
+            400: openapi.Response(
+                description="Bad Request - Invalid input data"
+            ),
+            403: openapi.Response(
+                description="Forbidden - User is not authenticated"
+            ),
+        }
+    )
+    def put(self, request, *args, **kwargs):
+        return super().put(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_summary="Partially update the authenticated user's profile",
+        operation_description="""
+            Allows an authenticated user to partially update their profile.
+
+            **Permissions:**  
+            - Only authenticated users can access this endpoint.  
+
+            **Request Body:**  
+            - Any subset of user profile fields can be updated.  
+
+            **Responses:**  
+            - `200 OK` - User profile updated successfully  
+            - `400 Bad Request` - Invalid input data  
+            - `403 Forbidden` - If the user is not authenticated  
+        """,
+        request_body=CustomUserSerializer,
+        responses={
+            200: openapi.Response(
+                description="User profile partially updated successfully",
+                schema=CustomUserSerializer()
+            ),
+            400: openapi.Response(
+                description="Bad Request - Invalid input data"
+            ),
+            403: openapi.Response(
+                description="Forbidden - User is not authenticated"
+            ),
+        }
+    )
+    def patch(self, request, *args, **kwargs):
+        return super().patch(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="Delete the authenticated user's profile",
+        operation_description="""
+            Allows an authenticated user to delete their profile.
+
+            **Permissions:**  
+            - Only authenticated users can access this endpoint.  
+
+            **Responses:**  
+            - `204 No Content` - User profile deleted successfully  
+            - `403 Forbidden` - If the user is not authenticated  
+        """,
+        responses={
+            204: openapi.Response(
+                description="User profile deleted successfully"
+            ),
+            403: openapi.Response(
+                description="Forbidden - User is not authenticated"
+            ),
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        return super().delete(request, *args, **kwargs)
 
     def get_object(self):
         """
         Retrieve the current authenticated user.
-
-        This method returns the user object associated with the current
-        authenticated request. It assumes that the user is logged in and
-        authenticated, and it directly returns the user instance from the
-        request context.
         """
 
         return self.request.user
@@ -117,7 +272,7 @@ class FarmerProfileAPIView(RetrieveUpdateAPIView):
     - 404 Not Found: If user does not have a farmer profile
     """
     serializer_class = FarmerProfileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsFarmer]
 
     def get_object(self):
         """
@@ -143,7 +298,7 @@ class ConsumerProfileAPIView(RetrieveUpdateAPIView):
     - 404 Not Found: If user does not have a consumer profile
     """
     serializer_class = ConsumerProfileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsConsumer]
 
     def get_object(self):
         """

@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     # Installed apps 
     'orders.apps.OrdersConfig',
     'cart.apps.CartConfig',
+    'payment.apps.PaymentConfig',
     'accounts.apps.AccountsConfig',
     'products.apps.ProductsConfig',
 ]
@@ -202,9 +203,34 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-EMAIL_BACKEND = env("EMAIL_BACKEND")
+# EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_PORT = env.int("EMAIL_PORT")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
-EMAIL_HOST_USER = env("EMAIL_HOST_USER")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+EMAIL_HOST_USER = env("EMAIL_HOST_USER")
+
+STRIPE_PUBLISHABLE_KEY=env("STRIPE_PUBLISHABLE_KEY")
+STRIPE_SECRET_KEY=env("STRIPE_SECRET_KEY")
+STRIPE_API_VERSION = '2024-04-10'
+
+
+
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default='amqp://guest:guest@localhost:5672/')
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default='rpc://')
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TIMEZONE = 'Africa/Nairobi'
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+# Task tracking (use Redis or database for production)
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 300  # 5 minutes max task run time
+
+# Prevent crashes from unresponsive broker connections
+CELERY_BROKER_CONNECTION_RETRY = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+
+# Worker concurrency
+CELERY_WORKER_CONCURRENCY = 4

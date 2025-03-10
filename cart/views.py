@@ -8,6 +8,10 @@ from drf_yasg import openapi
 from .serializers import CartAddProductSerializer
 from products.models import Product
 from rest_framework.exceptions import ValidationError
+import logging
+from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 class CartAddProductView(APIView):
     """
@@ -63,6 +67,7 @@ class CartAddProductView(APIView):
     
     def post(self, request, product_id):
         cart = Cart(request)
+        
         self.product = get_object_or_404(Product, id=product_id)
         
         serializer = CartAddProductSerializer(
@@ -135,37 +140,54 @@ class CartRemoveProductView(APIView):
         }
     )
     def post(self, request, product_id):
-
-        cart = Cart(request)
-        product = get_object_or_404(Product, id=product_id)
+        cart = Cart(request)        
 
         # Check if the product is in the cart
-        if str(product.id) not in cart.cart:
+        if str(product_id) not in cart.cart:
             return Response(
                 {'detail': 'Product not found in cart.'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        
+        product = get_object_or_404(Product, id=product_id)
 
-        # Remove product from cart
-        cart.remove(product)
+        # Remove product and log action
+        try:
+            cart.remove(product)
+            logger.info(f"Product {product.id} removed from cart.")
+        except Exception as e:
+            logger.error(f"Error removing product {product.id} from cart: {e}")
+            return Response(
+                {'detail': 'Error removing product from cart.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        # Prepare updated cart details
-        cart_data = [
-            {
-                'product_id': item['product'].id,
-                'product_name': item['product'].name,
-                'quantity': item['quantity'],
-                'price': str(item['price']),
-                'total_price': str(item['total_price']),
-            }
-            for item in cart
-        ]
+        # Prepare cart data
+        cart_data = []
+        for item in cart:
+            try:
+                cart_data.append({
+                    'product_id': item['product'].id,
+                    'product_name': item['product'].name,
+                    'quantity': item['quantity'],
+                    'price': str(item['price'].quantize(Decimal('0.01'))),
+                    'total_price': str(item['total_price'].quantize(Decimal('0.01'))),
+                })
+            except Exception as e:
+                logger.error(f"Error processing cart item {item}: {e}")
+
+        # Get total price safely
+        try:
+            total_price = str(format(cart.get_total_price(), '.2f'))
+        except Exception as e:
+            logger.error(f"Error calculating total cart price: {e}")
+            total_price = "0.00"
 
         return Response(
             {
                 'detail': 'Product removed from cart successfully.',
                 'cart': cart_data,
-                'total_price': str(cart.get_total_price()),
+                'total_price': total_price,
             },
             status=status.HTTP_200_OK
         )
