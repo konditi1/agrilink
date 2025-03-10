@@ -34,7 +34,9 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1"])
+# ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1"])
+ALLOWED_HOSTS=['localhost', '127.0.0.1', 'agrilink-nnwc.onrender.com']
+
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
 
@@ -151,7 +153,8 @@ WSGI_APPLICATION = 'agrilink.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.parse(DATABASE_URL)
+    # 'default': dj_database_url.parse(DATABASE_URL)
+    'default': dj_database_url.config('postgresql://fena:QHx2YQdzLunOcV0M4H4zvGUg8lj7QEev@dpg-cv7hp1tds78s7395vp30-a/agrilink', conn_max_age=600)
     
     # 'default': {
     #     'ENGINE': 'django.db.backends.postgresql',
