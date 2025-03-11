@@ -128,9 +128,6 @@ class UserRegistrationAPIView(CreateAPIView):
     
 
 class UserProfileAPIView(RetrieveUpdateDestroyAPIView):
-    """
-    Retrieve, update, or delete the authenticated user's profile.
-    """   
     serializer_class = CustomUserSerializer
     permission_classes = [IsAuthenticated]
 
@@ -260,7 +257,7 @@ class UserProfileAPIView(RetrieveUpdateDestroyAPIView):
         return self.request.user
 
 
-class FarmerProfileAPIView(RetrieveUpdateAPIView):
+class FarmerProfileAPIView(RetrieveUpdateDestroyAPIView):
     """
     Retrieve or update the authenticated user's farmer profile.
 
@@ -286,7 +283,7 @@ class FarmerProfileAPIView(RetrieveUpdateAPIView):
         return self.request.user.farmer_profile
     
 
-class ConsumerProfileAPIView(RetrieveUpdateAPIView):
+class ConsumerProfileAPIView(RetrieveUpdateDestroyAPIView):
     """
     Retrieve or update the authenticated user's consumer profile.
 
@@ -309,33 +306,57 @@ class ConsumerProfileAPIView(RetrieveUpdateAPIView):
         if not hasattr(self.request.user, 'consumer_profile'):
             return Response({"detail": "Consumer profile not found"}, status=status.HTTP_404_NOT_FOUND)
         return self.request.user.consumer_profile
+    
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Check Email Availability",
+    operation_description="""
+    Checks if a given email is already registered.
 
+    **Permissions:**  
+    - `AllowAny`: Accessible to both authenticated and unauthenticated users.
 
+    **Request Body:**  
+    - `email` (string, optional): Email to check for availability.  
+
+    **Responses:**  
+    - `200 OK`: Returns the availability status for email.  
+    - `400 Bad Request`: If request data is invalid.
+    """,
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            "email": openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL, example="john@example.com"),
+        },
+    ),
+    responses={
+        200: openapi.Response(
+            description="Availability check result",
+            examples={
+                "application/json": {
+                    "email_exists": True
+                }
+            }
+        ),
+        400: openapi.Response(
+            description="Invalid request data",
+            examples={
+                "application/json": {
+                    "detail": "Invalid request data."
+                }
+            }
+        ),
+    },
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def check_username_email(request):
+def check_email(request):
     """
-    Check if a username and/or email already exist in the database.
-
-    **Inputs**
-
-    - `username`: the username to check
-    - `email`: the email to check
-
-    **Outputs**
-
-    - `username_exists`: boolean indicating if the username exists
-    - `email_exists`: boolean indicating if the email exists
-
-    **Permissions**
-
-    - AllowAny: Unauthenticated users can call this API
+    Check if an email already exist in the database.
     """
-    username = request.data.get('username', '')
     email = request.data.get('email', '')
     
     response = {
-        'username_exists': CustomUser.objects.filter(username=username).exists() if username else False,
         'email_exists': CustomUser.objects.filter(email=email).exists() if email else False
     }
     

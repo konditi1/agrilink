@@ -15,7 +15,7 @@ urlpatterns = [
     path('api/consumer/', views.ConsumerProfileAPIView.as_view(), name='consumer-profile'),
 
     # Check username and email availability    
-    path('api/check-availability/', views.check_username_email, name='check_availability'),
+    path('api/check-availability/', views.check_email, name='check_availability'),
 
     # Password reset
     path('api/password-reset/', views.PassWordResetAPIView.as_view(), name='password_reset_request'),
