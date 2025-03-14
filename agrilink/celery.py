@@ -20,6 +20,7 @@ app.conf.result_expires = 3600  # 1 hour, adjust based on your needs
 app.conf.task_acks_late = True  # Ensures tasks are acknowledged only after execution
 app.conf.task_reject_on_worker_lost = True  # Prevents tasks from being lost if worker crashes
 
+app.autodiscover_tasks()
 
 # Enable logging for Celery
 app.conf.worker_hijack_root_logger = False

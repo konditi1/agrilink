@@ -151,3 +151,6 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+# Define a serializer for request validation
+class PasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField(help_text="User's registered email address")

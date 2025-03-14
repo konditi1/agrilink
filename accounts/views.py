@@ -7,13 +7,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
 from .models import CustomUser
+from agrilink.tasks import send_email
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from .serializers import UserRegisterSerializer, CustomUserSerializer, FarmerProfileSerializer, ConsumerProfileSerializer
+from .serializers import UserRegisterSerializer, CustomUserSerializer, FarmerProfileSerializer, ConsumerProfileSerializer, PasswordResetSerializer
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
-from django.core.mail import send_mail
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from rest_framework.permissions import BasePermission
@@ -285,15 +285,13 @@ class FarmerProfileAPIView(RetrieveUpdateDestroyAPIView):
 
 class ConsumerProfileAPIView(RetrieveUpdateDestroyAPIView):
     """
-    Retrieve or update the authenticated user's consumer profile.
+    Retrieve, update, or delete the authenticated user's consumer profile.
 
     **Permissions:**
-    - Authenticated users only
-
-    **Response:**
-    - 200 OK: Returns the consumer profile
-    - 404 Not Found: If user does not have a consumer profile
+    - `IsAuthenticated`: User must be logged in.
+    - `IsConsumer`: User must have a consumer profile.
     """
+   
     serializer_class = ConsumerProfileSerializer
     permission_classes = [IsAuthenticated, IsConsumer]
 
@@ -397,44 +395,63 @@ class LogoutAPIView(APIView):
 
 class PassWordResetAPIView(APIView):
     permission_classes = [AllowAny]
+    @swagger_auto_schema(
+        operation_summary="Request Password Reset",
+        operation_description="Sends a password reset link to the provided email if it exists in the system.",
+        request_body=PasswordResetSerializer,
+        responses={
+            200: openapi.Response(
+                description="Password reset email sent",
+                examples={
+                    "application/json": {
+                        "detail": "Password reset email has been sent"
+                    }
+                }
+            ),
+            400: openapi.Response(
+                description="Invalid request",
+                examples={
+                    "application/json": {
+                        "email": ["This field is required."]
+                    }
+                }
+            ),
+        },
+    )
 
     def post(self, request):
-        """
-        Resets a user's password.
+               
+        serializer = PasswordResetSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        :param request: Request object containing the user's email
-        :return: Response indicating success or failure of the password reset operation
-        """
-        
-        email = request.data.get('email')
-        if not email:
-            return Response({"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        email = serializer.validated_data["email"]
         
         try:
             user = CustomUser.objects.get(email=email)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
-            reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+            reset_link = f"{settings.FRONTEND_URL}/accounts/api/password-reset/confirm/{uid}/{token}/"
 
-            send_mail(
-                'Reset your password',
-                f'Click the link below to reset your password: {reset_link}',
-                settings.DEFAULT_FROM_EMAIL,
-                [email],
-                fail_silently=False
-            )
+
+            subject = "Reset your password"
+            body = f"Click the link below to reset your password: {reset_link}"
+            
+            send_email.delay(email, subject, body)
 
             return Response({"detail": "Password reset email has been sent"}, status=status.HTTP_200_OK)
         
         except CustomUser.DoesNotExist:
-            # for security reasons, we still return a positive response
-            return Response({"detail": "User does not exist"}, status=status.HTTP_200_OK)
-        
+            # Return success response to prevent email enumeration
+            return Response(
+                {"detail": "If a user with that email exists, a password reset email has been sent."},
+                status=status.HTTP_200_OK,
+            )
 
 class PasswordResetConfirmAPIView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request):
+    def post(self, request, uid, token):
         """
         Handles password reset confirmation.
 
@@ -449,12 +466,10 @@ class PasswordResetConfirmAPIView(APIView):
         :return: Response indicating success or failure of the password reset operation
         """
 
-        uid = request.data.get('uid')
-        token = request.data.get('token')
         password = request.data.get('password')
 
-        if not all([uid, token, password]):
-            return Response({"detail": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({"detail": "Password is required."}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             user_id = force_str(urlsafe_base64_decode(uid))

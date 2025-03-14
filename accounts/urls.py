@@ -19,7 +19,8 @@ urlpatterns = [
 
     # Password reset
     path('api/password-reset/', views.PassWordResetAPIView.as_view(), name='password_reset_request'),
-    path('api/password-reset/confirm/', views.PasswordResetConfirmAPIView.as_view(), name='password_reset_confirm'),
+    path('api/password-reset/confirm/<uid>/<token>/', views.PasswordResetConfirmAPIView.as_view(), name='password_reset_confirm'),
+
 
     # Logout
     path('api/logout/', views.LogoutAPIView.as_view(), name='api_logout'),
