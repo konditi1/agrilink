@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from cart.cart import Cart
 from .models import OrderItem, Order
-from orders.tasks import send_order_confirmation_email
+from agrilink.tasks import send_order_confirmation_email
 from .serializers import OrderSerializer
 from rest_framework.permissions import IsAuthenticated
 

@@ -1,6 +1,7 @@
 from typing import List, Optional
 from django.db.models import Prefetch, QuerySet
 from django.db import transaction
+from rest_framework.parsers import MultiPartParser
 from django.shortcuts import get_object_or_404
 
 from rest_framework import (
@@ -318,8 +319,29 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
     @swagger_auto_schema(
         operation_summary="Approve a category",
-        operation_description="Marks a category as approved, making it visible to all users.",
-        responses={200: openapi.Response("Category approved successfully")}
+        operation_description="""
+        Approves a category by its slug, making it visible to all users.
+
+        **Permissions:**  
+        - Admin only (`IsAdminUser`)
+
+        **Path Parameter:**  
+        - `slug` (string, required): The unique identifier for the category to approve.
+
+        **Responses:**  
+        - `200 OK`: Category approved successfully.  
+        - `404 Not Found`: If the category with the given slug does not exist.
+        """,
+        responses={
+            200: openapi.Response(
+                description="Category approved successfully",
+                examples={"application/json": {"message": "Category approved successfully."}}
+            ),
+            404: openapi.Response(
+                description="Category not found",
+                examples={"application/json": {"detail": "Not found."}}
+            )
+        }
     )
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def approve(self, request, slug=None):
@@ -632,19 +654,17 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
         operation_description="""
         Upload images for a product.
 
-        - The first image in the list will be set as the **primary image**.
-        - **Only the owner can upload images**.
-        - If no images are provided, returns a `400 Bad Request` error.
-        - If the upload fails, returns a `500 Internal Server Error`.
+        - The first uploaded image will be set as the **primary image**.
+        - **Only the product owner can upload images**.
         """,
         manual_parameters=[
             openapi.Parameter(
-                name="slug",
-                in_=openapi.IN_PATH,
-                description="The unique slug identifier of the product.",
-                type=openapi.TYPE_STRING,
+                name="images",
+                in_=openapi.IN_FORM,
+                description="One or more images to upload",
+                type=openapi.TYPE_FILE,
                 required=True,
-            )
+            ),
         ],
         responses={
             201: ProductImageSerializer(many=True),
@@ -656,10 +676,10 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
                 description="Image upload failed",
                 examples={"application/json": {"detail": "Image upload failed: [error_message]"}}
             ),
-        }
+        },
+        consumes=["multipart/form-data"],
     )
-
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=['POST'], parser_classes=[MultiPartParser])
     def upload_images(self, request: Request, slug: Optional[str] = None):
         product = self.get_object()
         self.check_product_ownership(product)
