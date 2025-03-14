@@ -33,7 +33,10 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=True)
 
 # ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1"])
-ALLOWED_HOSTS=['localhost', '127.0.0.1', 'agrilink-nnwc.onrender.com']
+ALLOWED_HOSTS=['localhost', '0.0.0.0','127.0.0.1', 'agrilink-nnwc.onrender.com']
+
+FRONTEND_URL = env('FRONTEND_URL', default='https://agrilink-nnwc.onrender.com')
+
 
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
@@ -164,18 +167,18 @@ else:
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
-    # {
-    #     'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    # },
-    # {
-    #     'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    # },
-    # {
-    #     'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    # },
-    # {
-    #     'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    # },
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
 ]
 
 # Internationalization
