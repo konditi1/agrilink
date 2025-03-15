@@ -32,14 +32,12 @@ class ProductFilter(filters.FilterSet):
     farm_name = filters.CharFilter(method="filter_by_farm_name")
     in_stock = filters.BooleanFilter(method="filter_in_stock")
     show_all = filters.BooleanFilter(method="filter_show_all")
-    ordering = filters.OrderingFilter(
-    fields={
-        'price': 'price',
-        'stock_quantity': 'stock_quantity',
-        'created_at': 'created_at',
-    }
-)
-    # ordering = filters.OrderingFilter( ['price', 'stock_quantity', 'created_at'])
+    ordering = filters.OrderingFilter(fields={
+                                        'price': 'price',
+                                        'stock_quantity': 'stock_quantity',
+                                        'created_at': 'created_at',
+                                    }
+                                )
     class Meta:
         model = Product
         fields = ["category",  "is_organic"]
