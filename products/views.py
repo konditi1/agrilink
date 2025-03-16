@@ -5,6 +5,7 @@ from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.exceptions import APIException, PermissionDenied
 from django.shortcuts import get_object_or_404
+from .pagination import ProductCursorPagination
 
 from rest_framework import (
     viewsets, 
@@ -40,6 +41,23 @@ class ProductOwnershipException(APIException):
     default_detail = "You do not have permission to modify this product."
     default_code = "permission_denied"
 
+class IsFarmer(permissions.BasePermission):
+    """
+    Custom permission to allow only farmers to create products.
+    """
+    def has_permission(self, request, view):
+        """
+        Checks if the user has permission to make the request.
+
+        Permissions are based on the user's role. If the user is a farmer, the request is allowed.
+        Otherwise, the request is denied.
+
+        :param request: The request object.
+        :param view: The view being accessed.
+        :return: True if the request is allowed, False otherwise.
+        """
+        return request.user.role == 'farmer'
+
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
@@ -65,8 +83,13 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Write permissions are only allowed to the owner of the product
-        return obj.product.seller == request.user
+        # Handle different object types
+        if hasattr(obj, "seller"):  # If obj itself has a seller (like Product)
+            return obj.seller == request.user
+        elif hasattr(obj, "product"):  # If obj has a product relation (like Review)
+            return obj.product.seller == request.user
+
+        return False 
     
 
 
@@ -188,7 +211,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
             List[permissions.BasePermission]: A list of permission instances.
         """
 
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'products']:
             return [permissions.AllowAny()]
         if self.action == 'create':
             return [permissions.IsAuthenticated()]
@@ -383,7 +406,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         ],
         responses={200: ProductSerializer(many=True)}
     )
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def products(self, request: Request, *args, **kwargs):
         """
         Retrieve all products in the category.
@@ -474,7 +497,7 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
     filterset_class = ProductFilter
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at', 'stock_quantity']
-
+    pagination_class = ProductCursorPagination
     def get_serializer_class(self):
         """
         Return the appropriate serializer class based on the action.
@@ -499,8 +522,8 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
         if self.action in ["list", "retrieve", "featured", "organic"]:
             return [permissions.AllowAny()]
         elif self.action == "create":
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticated(), IsOwnerOrReadOnly()]
+            return [permissions.IsAuthenticated(), IsFarmer()]
+        return [permissions.IsAuthenticated(), IsOwnerOrReadOnly(), IsFarmer()]
 
     def perform_create(self, serializer):
         """

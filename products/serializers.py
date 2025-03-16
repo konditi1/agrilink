@@ -89,8 +89,10 @@ class ProductSerializer(serializers.ModelSerializer):
         If the seller's farmer profile has a farm name, return it. Otherwise,
         return None.
         """
+        if hasattr(obj.seller, 'farmer_profile'):
+            return getattr(obj.seller.farmer_profile, "farm_name", None)
+        return None
 
-        return getattr(obj.seller.farmer_profile, "farm_name", None)
 
     def get_primary_image(self, obj):
         """

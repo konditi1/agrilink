@@ -56,10 +56,10 @@ class ProductFilter(filters.FilterSet):
         """
         Filter products that are in stock.
 
-        If `value` is True, filters products that have a quantity greater than 0
+        If `value` is True, filters products that have a stock quantity greater than 0
         and are active. Otherwise, returns the full queryset.
         """
         if value:
-            return queryset.filter(Q(quantity__gt=0) & Q(is_active=True))
+            return queryset.filter(Q(stock_quantity__gt=0) & Q(is_available=True))
         return queryset
 
