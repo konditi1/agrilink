@@ -3,7 +3,7 @@ from django.db.models import Prefetch, QuerySet
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 from django.shortcuts import get_object_or_404
 
 from rest_framework import (
@@ -693,7 +693,7 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['POST'], parser_classes=[MultiPartParser])
     def upload_images(self, request: Request, slug: Optional[str] = None):
         try:
-            product = self.get_object_or_404(Product, slug=slug)
+            product = get_object_or_404(Product, slug=slug)
             self.check_product_ownership(request, product)
 
             images: List = request.FILES.getlist('images')
@@ -734,7 +734,7 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )        
         
-        except permissions.PermissionDenied:
+        except PermissionDenied:
             return Response(
                 {"detail": "You do not have permission to upload images for this product."},
                 status=status.HTTP_403_FORBIDDEN
