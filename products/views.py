@@ -1,7 +1,9 @@
 from typing import List, Optional
 from django.db.models import Prefetch, QuerySet
 from django.db import transaction
-from rest_framework.parsers import MultiPartParser
+from rest_framework import serializers
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import APIException
 from django.shortcuts import get_object_or_404
 
 from rest_framework import (
@@ -29,6 +31,14 @@ from .utils import process_image
 from cart.serializers import CartAddProductSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ProductOwnershipException(APIException):
+    status_code = 403
+    default_detail = "You do not have permission to modify this product."
+    default_code = "permission_denied"
 
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
@@ -56,7 +66,7 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
             return True
         
         # Write permissions are only allowed to the owner of the product
-        return obj.seller == request.user
+        return obj.product.seller == request.user
     
 
 
@@ -144,7 +154,8 @@ class BaseProductManagementMixin:
             PermissionDenied: If the current user is not the owner.
         """
         if product.seller != request.user:
-            raise permissions.PermissionDenied("You do not have permission to modify this product.")
+            raise ProductOwnershipException
+
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -681,39 +692,59 @@ class ProductViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['POST'], parser_classes=[MultiPartParser])
     def upload_images(self, request: Request, slug: Optional[str] = None):
-        product = self.get_object()
-        self.check_product_ownership(product)
-
-        images: List = request.FILES.getlist('images')
-        if not images:
-            return Response(
-                {"detail": "No images provided"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
-            with transaction.atomic():
-                product_images = []
-                for image in images:
-                    processed_image = process_image(image)
-                    product_images.append(
-                        ProductImage(
-                            product=product, 
-                            image=processed_image,
-                            is_primary=len(product_images) == 0
+            product = self.get_object_or_404(Product, slug=slug)
+            self.check_product_ownership(request, product)
+
+            images: List = request.FILES.getlist('images')
+            if not images:
+                return Response(
+                    {"detail": "No images provided"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            try:
+                with transaction.atomic():
+                    product_images = []
+                    for image in images:
+                        try:
+                            processed_image = process_image(image)
+                        except Exception as e:
+                            logger.error(f"Failed to process image: {str(e)}")
+                            return Response(
+                                {"detail": f"Invalid image: {str(e)}"}, 
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                        product_images.append(
+                            ProductImage(
+                                product=product, 
+                                image=processed_image,
+                                is_primary=len(product_images) == 0
+                            )
                         )
-                    )
-                
-                ProductImage.objects.bulk_create(product_images)
-                
-            serializer = ProductImageSerializer(product_images, many=True)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+                    
+                    ProductImage.objects.bulk_create(product_images)
+                    
+                serializer = ProductImageSerializer(product_images, many=True)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+            except Exception as e:
+                return Response(
+                    {"detail": f"Image upload failed: {str(e)}"}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )        
         
+        except permissions.PermissionDenied:
+            return Response(
+                {"detail": "You do not have permission to upload images for this product."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         except Exception as e:
             return Response(
-                {"detail": f"Image upload failed: {str(e)}"}, 
+                {"detail": f"An unexpected error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 
 class ProductImageViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
@@ -738,6 +769,7 @@ class ProductImageViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
     """
     queryset = ProductImage.objects.select_related('product')
     serializer_class = ProductImageSerializer
+    parser_classes = (MultiPartParser, FormParser)
 
     def get_permissions(self):
         """
@@ -805,8 +837,13 @@ class ProductImageViewSet(BaseProductManagementMixin, viewsets.ModelViewSet):
         :raises PermissionDenied: If the current user is not the owner of the product
         """
 
-        product = serializer.validated_data['product']
-        self.check_product_ownership(product)
+        product = serializer.validated_data.get('product')
+
+        if isinstance(product, int):
+            product = get_object_or_404(Product, pk=product)
+
+        self.check_product_ownership(self.request, product)
+
         serializer.save()
 
 

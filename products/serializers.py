@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .utils import process_image
 from .models import Category, Product, ProductImage
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -37,8 +38,17 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id',  'image', 'is_primary', 'alt_text']
+        fields = ['id', 'product', 'image', 'is_primary', 'alt_text']
         read_only_fields = ['id']  # ID should be read-only
+    
+    def validate_image(self, value):
+        """
+        Validate and process the uploaded image.
+        """
+        try:
+            return process_image(value)
+        except ValueError as e:
+            raise serializers.ValidationError({"image": str(e)})
 
 class ProductSerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()
@@ -94,8 +104,8 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class ProductCreateSerializer(serializers.ModelSerializer):
-    uploaded_images = serializers.ListField(
-        child=serializers.ImageField(max_length=1000000, allow_empty_file=False),
+    uploaded_images = serializers.ListSerializer(
+        child=serializers.ImageField(allow_empty_file=False, required=False, write_only=True),
         write_only=True, required=False
     )
     primary_image = serializers.SerializerMethodField()
